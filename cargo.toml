@@ -1,5 +1,4 @@
-[package]
-name = "advance"
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 authors = ["anlang <2682525840@qq.com>"]
@@ -7,10 +6,12 @@ license = "MIT"
 
 [workspace]
 resolver = "3"
-members = ["wr_reg"]
+members = [
+    "crates/*",
+    "pac_led"
+]
 
 [workspace.dependencies]
-cortex-m = { version = "0.7.7" }
 cortex-m-rt = "0.7.3"
 rtt-target = "0.6.1"
 panic-rtt-target = "0.2.0"
