@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>简介 - rust embedded advance book</title>
+        <title>工程介绍 - rust embedded advance book</title>
 
 
         <!-- Custom HTML head -->
@@ -166,18 +166,85 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="简介"><a class="header" href="#简介">简介</a></h1>
-<p>本文介绍Rust语言的零成本抽象在嵌入式系统中的应用。利用Rust语言的零成本抽象，可以实现高效的内存管理、并发编程和错误处理，从而提高嵌入式系统的性能和可靠性，同时不损失性能。</p>
-<p>本文内容以及程序位于<a href="https://github.com/rust-embedded-example/advance.git">此仓库</a></p>
-<p>在阅读本文前，建议先阅读<a href="https://rust-embedded-example.github.io/stm32f3discovery/">rust embedded example book</a>,了解如何使用Rust构建嵌入式项目。</p>
-<p>阅读愉快！</p>
+                        <h1 id="工程介绍"><a class="header" href="#工程介绍">工程介绍</a></h1>
+<p>本工程是<code>cargo workSpace</code>结构，<code>./crate</code>目录下存放使用<code>svd2rust</code>工具生成的pac库，用于操作芯片的寄存器。</p>
+<p><code>./pac_led</code>是用于演示如何使用pac库操作芯片寄存器的源码。</p>
+<p><code>./openocd.gdb</code>是gdb调试脚本</p>
+<p><code>./Embed.toml</code>是cargo embed配置文件，用于配置cargo embed的参数。建立gdb调试前端。</p>
+<p><code>./justfile</code>是用于自动化构建和调试的脚本文件。用于生成Rust工程源码的反汇编文件。</p>
+<h2 id="源码介绍"><a class="header" href="#源码介绍">源码介绍</a></h2>
+<p>源码如下：</p>
+<pre><code class="language-rust ignore">#![no_main]
+#![no_std]
+
+use cortex_m::asm;
+use cortex_m_rt::entry;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
+use stm32f303pac as pac;
+
+/// 启用GPIOE时钟
+/// 不使用inline。默认情况下编译器会将此函数优化为inline，不方便查看汇编代码
+/// 设置no_mangle,不改变链接符号
+#[inline(never)]
+#[unsafe(no_mangle)]
+fn enable_gpioe_clock(dp: &amp;pac::Peripherals) {
+    dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
+}
+
+#[entry]
+fn main() -&gt; ! {
+    // 初始化RTT打印
+    rtt_init_print!();
+    rprintln!("Starting simple LED blink program");
+
+    // 获取外设访问
+    let dp = pac::Peripherals::take().unwrap();
+
+    // 启用GPIOE时钟
+    enable_gpioe_clock(&amp;dp);
+
+    // 配置PE8为推挽输出模式
+    let gpioe = &amp;dp.gpioe;
+    gpioe
+        .moder()
+        .modify(|_, w| unsafe { w.moder8().bits(0b01) }); // 设置为输出模式
+    gpioe.otyper().modify(|_, w| w.ot8().clear_bit()); // 推挽输出
+
+    rprintln!("LED blink initialized on PE8");
+
+    // 主循环，周期性切换LED状态
+    loop {
+        // 打开LED (设置高电平)
+        gpioe.bsrr().write(|w| w.bs8().set_bit());
+        rprintln!("LED ON");
+        asm::delay(1_000_000); // 延时
+
+        // 关闭LED (设置低电平)
+        gpioe.bsrr().write(|w| w.br8().set_bit());
+        rprintln!("LED OFF");
+        asm::delay(1_000_000); // 延时
+    }
+}</code></pre>
+<p>重点关注<code>enable_gpioe_clock</code>函数。下面代码中的<code>#[inline(never)]</code>要求编译器不要将该函数优化为内连函数，若被优化为内连函数，我们生成反汇编文件后得到的汇编文件中将没有这个函数的链接符号，函数内容将展开到<code>main</code>函数中，无法很好地定位到这个函数。<code>#[unsafe(no_mangle)</code>告诉编译器将函数的链接符号名设置为<code>enable_gpioe_clock</code>。这样便能很好地定位到这个函数对应的汇编码。</p>
+<pre><code class="language-rust ignore">/// 启用GPIOE时钟
+/// 不使用inline。默认情况下编译器会将此函数优化为inline，不方便查看汇编代码
+/// 设置no_mangle,不改变链接符号
+#[inline(never)]
+#[unsafe(no_mangle)]
+fn enable_gpioe_clock(dp: &amp;pac::Peripherals) {
+    dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
+}</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="简介.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
 
-                            <a rel="next prefetch" href="工程介绍.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="如何控制寄存器.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -187,8 +254,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="简介.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
 
-                    <a rel="next prefetch" href="工程介绍.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="如何控制寄存器.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

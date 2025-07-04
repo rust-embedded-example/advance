@@ -167,7 +167,192 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="chapter-1"><a class="header" href="#chapter-1">Chapter 1</a></h1>
+                        <h1 id="简介"><a class="header" href="#简介">简介</a></h1>
+<p>本文介绍Rust语言的零成本抽象在嵌入式系统中的应用。利用Rust语言的零成本抽象，可以实现高效的内存管理、并发编程和错误处理，从而提高嵌入式系统的性能和可靠性，同时不损失性能。</p>
+<p>本文内容以及程序位于<a href="https://github.com/rust-embedded-example/advance.git">此仓库</a></p>
+<p>在阅读本文前，建议先阅读<a href="https://rust-embedded-example.github.io/stm32f3discovery/">rust embedded example book</a>,了解如何使用Rust构建嵌入式项目。</p>
+<p>阅读愉快！</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="工程介绍"><a class="header" href="#工程介绍">工程介绍</a></h1>
+<p>本工程是<code>cargo workSpace</code>结构，<code>./crate</code>目录下存放使用<code>svd2rust</code>工具生成的pac库，用于操作芯片的寄存器。</p>
+<p><code>./pac_led</code>是用于演示如何使用pac库操作芯片寄存器的源码。</p>
+<p><code>./openocd.gdb</code>是gdb调试脚本</p>
+<p><code>./Embed.toml</code>是cargo embed配置文件，用于配置cargo embed的参数。建立gdb调试前端。</p>
+<p><code>./justfile</code>是用于自动化构建和调试的脚本文件。用于生成Rust工程源码的反汇编文件。</p>
+<h2 id="源码介绍"><a class="header" href="#源码介绍">源码介绍</a></h2>
+<p>源码如下：</p>
+<pre><code class="language-rust ignore">#![no_main]
+#![no_std]
+
+use cortex_m::asm;
+use cortex_m_rt::entry;
+use panic_rtt_target as _;
+use rtt_target::{rprintln, rtt_init_print};
+use stm32f303pac as pac;
+
+/// 启用GPIOE时钟
+/// 不使用inline。默认情况下编译器会将此函数优化为inline，不方便查看汇编代码
+/// 设置no_mangle,不改变链接符号
+#[inline(never)]
+#[unsafe(no_mangle)]
+fn enable_gpioe_clock(dp: &amp;pac::Peripherals) {
+    dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
+}
+
+#[entry]
+fn main() -&gt; ! {
+    // 初始化RTT打印
+    rtt_init_print!();
+    rprintln!("Starting simple LED blink program");
+
+    // 获取外设访问
+    let dp = pac::Peripherals::take().unwrap();
+
+    // 启用GPIOE时钟
+    enable_gpioe_clock(&amp;dp);
+
+    // 配置PE8为推挽输出模式
+    let gpioe = &amp;dp.gpioe;
+    gpioe
+        .moder()
+        .modify(|_, w| unsafe { w.moder8().bits(0b01) }); // 设置为输出模式
+    gpioe.otyper().modify(|_, w| w.ot8().clear_bit()); // 推挽输出
+
+    rprintln!("LED blink initialized on PE8");
+
+    // 主循环，周期性切换LED状态
+    loop {
+        // 打开LED (设置高电平)
+        gpioe.bsrr().write(|w| w.bs8().set_bit());
+        rprintln!("LED ON");
+        asm::delay(1_000_000); // 延时
+
+        // 关闭LED (设置低电平)
+        gpioe.bsrr().write(|w| w.br8().set_bit());
+        rprintln!("LED OFF");
+        asm::delay(1_000_000); // 延时
+    }
+}</code></pre>
+<p>重点关注<code>enable_gpioe_clock</code>函数。下面代码中的<code>#[inline(never)]</code>要求编译器不要将该函数优化为内连函数，若被优化为内连函数，我们生成反汇编文件后得到的汇编文件中将没有这个函数的链接符号，函数内容将展开到<code>main</code>函数中，无法很好地定位到这个函数。<code>#[unsafe(no_mangle)</code>告诉编译器将函数的链接符号名设置为<code>enable_gpioe_clock</code>。这样便能很好地定位到这个函数对应的汇编码。</p>
+<pre><code class="language-rust ignore">/// 启用GPIOE时钟
+/// 不使用inline。默认情况下编译器会将此函数优化为inline，不方便查看汇编代码
+/// 设置no_mangle,不改变链接符号
+#[inline(never)]
+#[unsafe(no_mangle)]
+fn enable_gpioe_clock(dp: &amp;pac::Peripherals) {
+    dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
+}</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="如何控制寄存器"><a class="header" href="#如何控制寄存器">如何控制寄存器</a></h1>
+<p>本节将介绍函数<code>enable_gpioe_clock</code>控制寄存器的过程。</p>
+<h2 id="获取抽象设备"><a class="header" href="#获取抽象设备">获取抽象设备</a></h2>
+<p>查看<code>let dp = pac::Peripherals::take().unwrap();</code>语句，<code>pac::Peripherals</code>结构如下：</p>
+<pre><code class="language-rust ignore">pub struct Peripherals {
+    #[doc = "GPIOA"]
+    pub gpioa: Gpioa,
+    #[doc = "GPIOB"]
+    pub gpiob: Gpiob,
+    #[doc = "GPIOC"]
+    pub gpioc: Gpioc,
+    #[doc = "GPIOD"]
+    pub gpiod: Gpiod,
+...</code></pre>
+<p>此结构体包含了众多芯片外设，进一步查看<code>taka()</code>,</p>
+<pre><code class="language-rust ignore">pub fn take() -&gt; Option&lt;Self&gt; {
+    critical_section::with(|_| {
+        if unsafe { DEVICE_PERIPHERALS } {
+            return None;
+        }
+        Some(unsafe { Peripherals::steal() })
+    })
+}</code></pre>
+<p><code>take()</code>函数返回<code>Option&lt;Self&gt;</code>，其中<code>Self</code>是<code>Peripherals</code>结构体。如果<code>DEVICE_PERIPHERALS</code>为<code>true</code>，则返回<code>None</code>，否则返回<code>Some(unsafe { Peripherals::steal() })</code>。可以看出，此函数运行时将屏蔽所有中断，第一次运行后会将<code>DEVICE_PERIPHERALS</code>设置为<code>true</code>，从而避免再次调用<code>take()</code>。
+进一步查看<code>Peripherals::steal()</code>函数。</p>
+<pre><code class="language-rust ignore">pub unsafe fn steal() -&gt; Self {
+    unsafe {
+        DEVICE_PERIPHERALS = true;
+        Peripherals {
+            gpioa: Gpioa::steal(),
+            gpiob: Gpiob::steal(),
+            gpioc: Gpioc::steal(),
+            gpiod: Gpiod::steal(),
+            ...</code></pre>
+<p>进一步查看<code>gpioa: Gpioa::steal()</code>:</p>
+<pre><code class="language-rust ignore">pub unsafe fn steal() -&gt; Self {
+    Self {
+        _marker: marker::PhantomData,
+    }
+}</code></pre>
+<p>此时，发现<code>Gpioa</code>是一个没有意义的结构体，是不是很惊讶？。我们已经接触到了rust语言的<strong>零成本抽象(zero abstraction)</strong> 。</p>
+<h2 id="查看代表芯片外设的结构体"><a class="header" href="#查看代表芯片外设的结构体">查看代表芯片外设的结构体</a></h2>
+<p>我们查看<code>Gpioa</code>这个数据类型：</p>
+<pre><code class="language-rust ignore">/// crates/stm32f303pac/src/lib.rs
+pub type Gpioa = crate::Periph&lt;gpioa::RegisterBlock, 0x4800_0000&gt;;
+
+/// crates/stm32f303pac/src/generic.rs
+pub struct Periph&lt;RB, const A: usize&gt; {
+    _marker: marker::PhantomData&lt;RB&gt;,
+}</code></pre>
+<p>我们发现<code>Gpioa</code>是一个有两个泛型参数的结构体，这个机构体拥有一个泛型变量，一个泛型常量。进一步阅读<code>crates/stm32f303pac/src/lib.rs</code>可以发现所有的外设都使用<code>crate::Periph</code>进行包装。进一步查看<code>gpioa::RegisterBlock</code>的定义：</p>
+<pre><code class="language-rust ignore">#[repr(C)]
+#[doc = "Register block"]
+pub struct RegisterBlock {
+    moder: Moder,
+    otyper: Otyper,
+    ospeedr: Ospeedr,
+    pupdr: Pupdr,
+    idr: Idr,
+    odr: Odr,
+    bsrr: Bsrr,
+    lckr: Lckr,
+    afrl: Afrl,
+    afrh: Afrh,
+    brr: Brr,
+}</code></pre>
+<p>这个结构使用了<code>#[repr(C)]</code>属性，表示结构体的内存排列将使用c语言格式。</p>
+<p>结合上述内容，我们可以知道<code>Periph&lt;RB, const A: usize&gt;</code>中的<code>RB</code>为芯片外设的寄存器块，<code>A</code>为外设的基地址。这个结构体使用了<code>#[repr(C)]</code>属性，表示结构体的内存排列将使用c语言格式，因此结构体的成员本身的地址将等于芯片寄存器的地址。</p>
+<p>当我们继续查看<code>pub struct Periph&lt;RB, const A: usize&gt;</code>可以发现：</p>
+<pre><code class="language-rust ignore">/// crates/stm32f303pac/src/generic.rs
+impl&lt;RB, const A: usize&gt; Periph&lt;RB, A&gt; {
+    #[doc = "Pointer to the register block"]
+    pub const PTR: *const RB = A as *const _;
+    #[doc = "Return the pointer to the register block"]
+    #[inline(always)]
+    pub const fn ptr() -&gt; *const RB {
+        Self::PTR
+    }
+...
+impl&lt;RB, const A: usize&gt; core::ops::Deref for Periph&lt;RB, A&gt; {
+    type Target = RB;
+    #[inline(always)]
+    fn deref(&amp;self) -&gt; &amp;Self::Target {
+        unsafe { &amp;*Self::PTR }
+    }
+}</code></pre>
+<p><code>Periph</code>具有一个<code>PTR</code>常量，这个常量表示寄存器块的指针，数值为<code>A</code>，也就是<code>pub type Gpioa = crate::Periph&lt;gpioa::RegisterBlock, 0x4800_0000&gt;;</code>中的<code>0x4800_0000</code>。<code>core::ops::Deref</code>实现了<code>Deref</code> trait，使得<code>Periph</code>解引用时自动转化为<code>RB</code>结构体，且结构体的基地址为<code>A</code>。</p>
+<p>我们回到此处：</p>
+<pre><code class="language-rust ignore">/// 启用GPIOE时钟
+/// 不使用inline。默认情况下编译器会将此函数优化为inline，不方便查看汇编代码
+/// 设置no_mangle,不改变链接符号
+#[inline(never)]
+#[unsafe(no_mangle)]
+fn enable_gpioe_clock(dp: &amp;pac::Peripherals) {
+    dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
+}</code></pre>
+<p><code>dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());</code>实际上调用了<code>deref()</code>方法，然后访问 RegisterBlock 的<code>ahbenr</code>字段。其地址为芯片寄存器对应的地址。</p>
+<h2 id="操作寄存器"><a class="header" href="#操作寄存器">操作寄存器</a></h2>
+<p>获取到寄存器对应的字段后，需要对其进行读写操作。但有的寄存器是只读寄存器，有的寄存器只能写入特定的数值，这些在C/C++，这类语言中无法使用静态检查避免误操作，但rust语言可以。</p>
+<p>我们继续查看：</p>
+<pre><code class="language-rust ignore">/// 启用GPIOE时钟
+/// 不使用inline。默认情况下编译器会将此函数优化为inline，不方便查看汇编代码
+/// 设置no_mangle,不改变链接符号
+#[inline(never)]
+#[unsafe(no_mangle)]
+fn enable_gpioe_clock(dp: &amp;pac::Peripherals) {
+    dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
+}</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="零成本抽象"><a class="header" href="#零成本抽象">零成本抽象</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="反汇编文件"><a class="header" href="#反汇编文件">反汇编文件</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="gdb调试"><a class="header" href="#gdb调试">gdb调试</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="调试"><a class="header" href="#调试">调试</a></h1>
 
                     </main>
 
