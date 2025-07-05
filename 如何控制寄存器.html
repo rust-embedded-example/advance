@@ -171,9 +171,7 @@
 <h2 id="获取抽象设备"><a class="header" href="#获取抽象设备">获取抽象设备</a></h2>
 <h3 id="分析-peripherals-结构"><a class="header" href="#分析-peripherals-结构">分析 Peripherals 结构</a></h3>
 <p>查看 <code>let dp = pac::Peripherals::take().unwrap();</code> 语句，<code>pac::Peripherals</code> 结构如下：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub struct Peripherals {
+<pre><code class="language-rust ignore">pub struct Peripherals {
     #[doc = "GPIOA"]
     pub gpioa: Gpioa,
     #[doc = "GPIOB"]
@@ -183,22 +181,18 @@
     #[doc = "GPIOD"]
     pub gpiod: Gpiod,
     // ...
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>此结构体包含了众多芯片外设。</p>
 <h3 id="take-函数的实现"><a class="header" href="#take-函数的实现">take() 函数的实现</a></h3>
 <p>进一步查看 <code>take()</code> 函数：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn take() -&gt; Option&lt;Self&gt; {
+<pre><code class="language-rust ignore">pub fn take() -&gt; Option&lt;Self&gt; {
     critical_section::with(|_| {
         if unsafe { DEVICE_PERIPHERALS } {
             return None;
         }
         Some(unsafe { Peripherals::steal() })
     })
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>函数说明：</strong></p>
 <ul>
 <li>返回 <code>Option&lt;Self&gt;</code>，其中 <code>Self</code> 是 <code>Peripherals</code> 结构体</li>
@@ -208,9 +202,7 @@
 </ul>
 <h3 id="steal-函数的实现"><a class="header" href="#steal-函数的实现">steal() 函数的实现</a></h3>
 <p>进一步查看 <code>Peripherals::steal()</code> 函数：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub unsafe fn steal() -&gt; Self {
+<pre><code class="language-rust ignore">pub unsafe fn steal() -&gt; Self {
     unsafe {
         DEVICE_PERIPHERALS = true;
         Peripherals {
@@ -221,33 +213,26 @@
             // ...
         }
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="零成本抽象的体现"><a class="header" href="#零成本抽象的体现">零成本抽象的体现</a></h3>
 <p>进一步查看 <code>Gpioa::steal()</code>：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub unsafe fn steal() -&gt; Self {
+<pre><code class="language-rust ignore">pub unsafe fn steal() -&gt; Self {
     Self {
         _marker: marker::PhantomData,
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>重要发现：</strong>
 <code>Gpioa</code> 是一个没有意义的结构体，是不是很惊讶？我们已经接触到了 Rust 语言的 <strong>零成本抽象（zero abstraction）</strong>。</p>
 <h2 id="查看代表芯片外设的结构体"><a class="header" href="#查看代表芯片外设的结构体">查看代表芯片外设的结构体</a></h2>
 <h3 id="类型定义分析"><a class="header" href="#类型定义分析">类型定义分析</a></h3>
 <p>我们查看 <code>Gpioa</code> 这个数据类型：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// crates/stm32f303pac/src/lib.rs
+<pre><code class="language-rust ignore">// crates/stm32f303pac/src/lib.rs
 pub type Gpioa = crate::Periph&lt;gpioa::RegisterBlock, 0x4800_0000&gt;;
 
 // crates/stm32f303pac/src/generic.rs
 pub struct Periph&lt;RB, const A: usize&gt; {
     _marker: marker::PhantomData&lt;RB&gt;,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>结构说明：</strong></p>
 <ul>
 <li><code>Gpioa</code> 是一个有两个泛型参数的结构体</li>
@@ -256,9 +241,7 @@ pub struct Periph&lt;RB, const A: usize&gt; {
 </ul>
 <h3 id="registerblock-结构"><a class="header" href="#registerblock-结构">RegisterBlock 结构</a></h3>
 <p>进一步查看 <code>gpioa::RegisterBlock</code> 的定义：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[repr(C)]
+<pre><code class="language-rust ignore">#[repr(C)]
 #[doc = "Register block"]
 pub struct RegisterBlock {
     moder: Moder,
@@ -272,8 +255,7 @@ pub struct RegisterBlock {
     afrl: Afrl,
     afrh: Afrh,
     brr: Brr,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>关键特性：</strong></p>
 <ul>
 <li>使用 <code>#[repr(C)]</code> 属性，表示结构体的内存排列将使用 C 语言格式</li>
@@ -287,9 +269,7 @@ pub struct RegisterBlock {
 </ul>
 <h3 id="指针和解引用实现"><a class="header" href="#指针和解引用实现">指针和解引用实现</a></h3>
 <p>当我们继续查看 <code>pub struct Periph&lt;RB, const A: usize&gt;</code> 可以发现：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// crates/stm32f303pac/src/generic.rs
+<pre><code class="language-rust ignore">// crates/stm32f303pac/src/generic.rs
 impl&lt;RB, const A: usize&gt; Periph&lt;RB, A&gt; {
     #[doc = "Pointer to the register block"]
     pub const PTR: *const RB = A as *const _;
@@ -309,8 +289,7 @@ impl&lt;RB, const A: usize&gt; core::ops::Deref for Periph&lt;RB, A&gt; {
     fn deref(&amp;self) -&gt; &amp;Self::Target {
         unsafe { &amp;*Self::PTR }
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>实现要点：</strong></p>
 <ul>
 <li><code>Periph</code> 具有一个 <code>PTR</code> 常量，表示寄存器块的指针</li>
@@ -320,10 +299,7 @@ impl&lt;RB, const A: usize&gt; core::ops::Deref for Periph&lt;RB, A&gt; {
 </ul>
 <h3 id="实际调用分析"><a class="header" href="#实际调用分析">实际调用分析</a></h3>
 <p>我们回到关键代码：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());
-<span class="boring">}</span></code></pre></pre>
+<pre><code class="language-rust ignore">dp.rcc.ahbenr().modify(|_, w| w.iopeen().set_bit());</code></pre>
 <p>这行代码实际上：</p>
 <ol>
 <li>调用了 <code>deref()</code> 方法</li>
@@ -335,15 +311,12 @@ impl&lt;RB, const A: usize&gt; core::ops::Deref for Periph&lt;RB, A&gt; {
 <p>获取到寄存器对应的字段后，需要对其进行读写操作。在 C/C++ 中，这类语言无法使用静态检查避免误操作，但 Rust 语言可以。</p>
 <h3 id="ahbenr-函数分析"><a class="header" href="#ahbenr-函数分析">ahbenr() 函数分析</a></h3>
 <p>我们深入查看 <code>ahbenr()</code> 函数：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// crates/stm32f303pac/src/rcc.rs
+<pre><code class="language-rust ignore">// crates/stm32f303pac/src/rcc.rs
 #[doc = "0x14 - AHB Peripheral Clock enable register (RCC_AHBENR)"]
 #[inline(always)]
 pub const fn ahbenr(&amp;self) -&gt; &amp;Ahbenr {
     &amp;self.ahbenr
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>说明：</strong></p>
 <ul>
 <li><code>crates/stm32f303pac/src/rcc.rs</code> 文件包含了 <code>RCC</code> 外设的所有寄存器</li>
@@ -353,14 +326,11 @@ pub const fn ahbenr(&amp;self) -&gt; &amp;Ahbenr {
 <h3 id="reg-结构体"><a class="header" href="#reg-结构体">Reg 结构体</a></h3>
 <p><code>Ahbenr</code> 寄存器类型为：<code>pub type Ahbenr = crate::Reg&lt;ahbenr::AhbenrSpec&gt;;</code></p>
 <p>使用 <code>crate::Reg&lt;&gt;</code> 类型：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// crates/stm32f303pac/src/generic.rs
+<pre><code class="language-rust ignore">// crates/stm32f303pac/src/generic.rs
 pub struct Reg&lt;REG: RegisterSpec&gt; {
     register: vcell::VolatileCell&lt;REG::Ux&gt;,
     _marker: marker::PhantomData&lt;REG&gt;,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>字段说明：</strong></p>
 <ul>
 <li><code>register</code> 字段：<code>VolatileCell</code> 类型，用于存储寄存器的值，读写时不会被优化</li>
@@ -368,19 +338,14 @@ pub struct Reg&lt;REG: RegisterSpec&gt; {
 <li><code>REG::Ux</code> 是一个关联类型，指定寄存器的数据类型</li>
 </ul>
 <h3 id="registerspec-trait"><a class="header" href="#registerspec-trait">RegisterSpec trait</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// crates/stm32f303pac/src/generic.rs
+<pre><code class="language-rust ignore">// crates/stm32f303pac/src/generic.rs
 pub trait RegisterSpec {
     #[doc = " Raw register type (`u8`, `u16`, `u32`, ...)."]
     type Ux: RawReg;
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="ahbenrspec-类型实现"><a class="header" href="#ahbenrspec-类型实现">AhbenrSpec 类型实现</a></h3>
 <p>查看文件 <code>crates/stm32f303pac/src/rcc/ahbenr.rs</code>，此文件为 <code>AhbenrSpec</code> 类型进行了多种包装：</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// 位数为32位
+<pre><code class="language-rust ignore">// 位数为32位
 impl crate::RegisterSpec for AhbenrSpec {
     type Ux = u32;
 }
@@ -399,8 +364,7 @@ impl crate::Writable for AhbenrSpec {
 #[doc = "`reset()` method sets AHBENR to value 0x14"]
 impl crate::Resettable for AhbenrSpec {
     const RESET_VALUE: u32 = 0x14;
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>实现要点：</strong></p>
 <ul>
 <li>完整地描述了 <code>Ahbenr</code> 寄存器的各个位域、初始值、读写限制等</li>
@@ -408,28 +372,20 @@ impl crate::Resettable for AhbenrSpec {
 </ul>
 <h2 id="modify-函数详解"><a class="header" href="#modify-函数详解">modify 函数详解</a></h2>
 <h3 id="函数签名"><a class="header" href="#函数签名">函数签名</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn modify&lt;F&gt;(&amp;self, f: F) -&gt; REG::Ux
-<span class="boring">}</span></code></pre></pre>
+<pre><code class="language-rust ignore">pub fn modify&lt;F&gt;(&amp;self, f: F) -&gt; REG::Ux</code></pre>
 <h3 id="参数说明"><a class="header" href="#参数说明">参数说明</a></h3>
 <ul>
 <li><strong>闭包参数 f</strong>：接受一个闭包参数用于修改寄存器</li>
 <li><strong>返回值</strong>：寄存器的最终值，类型为 <code>REG::Ux</code>（通常是 <code>u32</code> 等整数类型）</li>
 </ul>
 <h3 id="闭包约束"><a class="header" href="#闭包约束">闭包约束</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>for&lt;'w&gt; F: FnOnce(&amp;R&lt;REG&gt;, &amp;'w mut W&lt;REG&gt;) -&gt; &amp;'w mut W&lt;REG&gt;
-<span class="boring">}</span></code></pre></pre>
+<pre><code class="language-rust ignore">for&lt;'w&gt; F: FnOnce(&amp;R&lt;REG&gt;, &amp;'w mut W&lt;REG&gt;) -&gt; &amp;'w mut W&lt;REG&gt;</code></pre>
 <ul>
 <li>闭包接收两个参数：读取器 <code>&amp;R&lt;REG&gt;</code> 和写入器 <code>&amp;'w mut W&lt;REG&gt;</code></li>
 <li>返回修改后的写入器引用</li>
 </ul>
 <h3 id="完整实现"><a class="header" href="#完整实现">完整实现</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// crates/stm32f303pac/src/generic.rs
+<pre><code class="language-rust ignore">// crates/stm32f303pac/src/generic.rs
 impl&lt;REG: Readable + Writable&gt; Reg&lt;REG&gt; {
     pub fn modify&lt;F&gt;(&amp;self, f: F) -&gt; REG::Ux
     where
@@ -450,17 +406,13 @@ impl&lt;REG: Readable + Writable&gt; Reg&lt;REG&gt; {
         self.register.set(value);
         value
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="执行流程"><a class="header" href="#执行流程">执行流程</a></h3>
 <ol>
 <li><strong>读取当前值</strong>：<code>let bits = self.register.get()</code></li>
 <li><strong>创建读写器实例</strong>：创建读取器 <code>R</code> 和写入器 <code>W</code> 实例</li>
 <li><strong>应用位掩码</strong>：写入器初始化时应用位掩码
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>bits &amp; !ONE_TO_MODIFY_FIELDS_BITMAP | ZERO_TO_MODIFY_FIELDS_BITMAP
-<span class="boring">}</span></code></pre></pre>
+<pre><code class="language-rust ignore">bits &amp; !ONE_TO_MODIFY_FIELDS_BITMAP | ZERO_TO_MODIFY_FIELDS_BITMAP</code></pre>
 这确保某些特殊位按预期处理（如清零位或置位位）</li>
 <li><strong>调用用户闭包</strong>：调用用户提供的闭包 <code>f</code> 进行修改</li>
 <li><strong>提取新值</strong>：从修改后的写入器中提取位值 <code>.bits</code></li>
