@@ -167,18 +167,19 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="零成本抽象"><a class="header" href="#零成本抽象">零成本抽象</a></h1>
+<p>零成本抽象（Zero-Cost Abstraction）是指在使用抽象接口时，编译器能够将抽象接口的调用转换为与之等价的低级代码，从而实现零成本的抽象。这种抽象方式可以提高代码的可读性和可维护性，同时保持高性能。</p>
+<p>在<a href="./%E5%A6%82%E4%BD%95%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8.html">如何控制寄存器</a>中，程序使用了Rust语言的零成本抽象特性来描述芯片外设的硬件限制，例如寄存器的位宽、地址、读写限制等。通过这种方式，程序可以更清晰地表达硬件的限制，无需担心开发者错误操作硬件，从而保证了程序的正确性和可靠性。</p>
+<p>在<a href="./%E5%8F%8D%E6%B1%87%E7%BC%96%E6%96%87%E4%BB%B6.html">反汇编文件</a>中，可以清晰地看到，Rust的各种操作限制最终会被转换为没有任何副作用的指令，汇编码中并不存在任何与操作限制相关的指令，而只是对特定寄存器直接进行读写操作。</p>
+<p>这便是零成本抽象的体现，它使得程序在使用抽象接口时，能够享受到高度抽象、类型安全的优势，同时又能达到C/C++这类系统语言的性能。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="如何控制寄存器.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="反汇编文件.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="反汇编文件.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <i class="fa fa-angle-right"></i>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -186,13 +187,10 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="如何控制寄存器.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="反汇编文件.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="反汇编文件.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <i class="fa fa-angle-right"></i>
-                    </a>
             </nav>
 
         </div>
